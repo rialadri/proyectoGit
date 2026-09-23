@@ -1,0 +1,22 @@
+name: Prueba Runner y Secrets
+
+on: [push]
+
+jobs:
+  comparar:
+    runs-on: self-hosted
+    steps:
+      - name: Comparar DEV_TOKEN con LOCAL_DEV_TOKEN
+        shell: powershell
+        env:
+          SECRET_DEV: ${{ secrets.DEV_TOKEN }}
+        run: |
+          $localDev = [System.Environment]::GetEnvironmentVariable('LOCAL_DEV_TOKEN', 'User')
+          Write-Host "Verificando coincidencia..."
+          if ($env:SECRET_DEV -eq $localDev) {
+            Write-Host "Correcto: Los tokens coinciden."
+            exit 0
+          } else {
+            Write-Error "Fallo: Los tokens NO coinciden."
+            exit 1
+          }
