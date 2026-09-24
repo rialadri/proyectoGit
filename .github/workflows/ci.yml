@@ -1,0 +1,48 @@
+name: CI Develop
+
+on:
+  push:
+    branches: [ develop ]
+  pull_request:
+    branches: [ develop ]
+    types: [ opened, synchronize, reopened ]
+  workflow_dispatch:
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Actualizar README con feature
+        run: |
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          echo -e "\nAñadida feature: $BRANCH_NAME" >> README.md
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "docs: anadida feature $BRANCH_NAME al README [skip ci]" || echo "No changes to commit"
+          git push || echo "No changes to push"
+
+  validate-dev:
+    needs: update-readme
+    runs-on: self-hosted
+    steps:
+      - name: Validar DEV_TOKEN contra LOCAL_DEV_TOKEN
+        shell: powershell
+        env:
+          SECRET_DEV: ${{ secrets.DEV_TOKEN }}
+        run: |
+          $localDev = [System.Environment]::GetEnvironmentVariable('LOCAL_DEV_TOKEN', 'User')
+          Write-Host "Validando token de DEV..."
+          if ($env:SECRET_DEV -eq $localDev) {
+            Write-Host "Correcto: DEV_TOKEN coincide con LOCAL_DEV_TOKEN."
+            exit 0
+          } else {
+            Write-Error "Fallo: DEV_TOKEN no coincide con LOCAL_DEV_TOKEN."
+            exit 1
+          }

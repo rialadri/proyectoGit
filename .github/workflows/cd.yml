@@ -1,0 +1,51 @@
+name: CD Main
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    types: [ opened, synchronize, reopened ]
+  workflow_dispatch:
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Incrementar versión en README con fecha y hora
+        run: |
+          DATE_NOW=$(date +"%Y-%m-%d %H:%M:%S")
+          CURRENT_VER=$(grep -oE 'AppVersion-[0-9]+' README.md | head -n1 | grep -oE '[0-9]+' || echo "0")
+          NEXT_VER=$((CURRENT_VER + 1))
+          
+          sed -i -E "s/AppVersion-[0-9]+.*/AppVersion-$NEXT_VER - $DATE_NOW/" README.md
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "chore(release): bump version to AppVersion-$NEXT_VER [skip ci]" || echo "No changes to commit"
+          git push || echo "No changes to push"
+
+  validate-prod:
+    needs: update-readme
+    runs-on: self-hosted
+    steps:
+      - name: Validar PROD_TOKEN contra LOCAL_PROD_TOKEN
+        shell: powershell
+        env:
+          SECRET_PROD: ${{ secrets.PROD_TOKEN }}
+        run: |
+          $localProd = [System.Environment]::GetEnvironmentVariable('LOCAL_PROD_TOKEN', 'User')
+          Write-Host "Validando token de PROD..."
+          if ($env:SECRET_PROD -eq $localProd) {
+            Write-Host "Correcto: PROD_TOKEN coincide con LOCAL_PROD_TOKEN."
+            exit 0
+          } else {
+            Write-Error "Fallo: PROD_TOKEN no coincide con LOCAL_PROD_TOKEN."
+            exit 1
+          }
